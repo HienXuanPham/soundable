@@ -1,8 +1,11 @@
 from flask import Flask
+from flask_login import LoginManager
 from flask_sqlalchemy import SQLAlchemy
 import os
 
 db = SQLAlchemy()
+
+login_manager = LoginManager()
 
 def create_app(test_config=None):
     app = Flask(__name__)
@@ -14,6 +17,12 @@ def create_app(test_config=None):
         app.config["TESTING"] = True
         app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("SQLALCHEMY_TEST_DATABASE_URI")
 
+    from app.models.user import User
+
     db.init_app(app)
+    login_manager.init_app(app)
+
+    from .routes import users_bp
+    app.register_blueprint(users_bp)
 
     return app
