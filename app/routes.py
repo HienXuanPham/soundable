@@ -1,9 +1,12 @@
-from flask_login import login_user, logout_user, login_required
-from app import db, login_manager
-from flask import Blueprint, request, jsonify
+from datetime import datetime, timedelta
+from flask_login import login_user, logout_user, login_required, current_user
+from app import db, login_manager, mail
+from flask import Blueprint, request, jsonify, url_for
 from app.models.user import User
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.exc import SQLAlchemyError
+from flask_mail import Message
+import secrets
 
 users_bp = Blueprint("users", __name__, url_prefix="/users")
 page_bp = Blueprint("", __name__, url_prefix="")
@@ -31,6 +34,17 @@ def validate_signup_request(data):
         return {"valid": False, "message": "Password and confirm password do not match"}
 
     return {"valid": True, "data": {field: data[field] for field in required_fields}}
+
+def generate_verification_token():
+    token = secrets.token_hex(16)
+    expiration_time = datetime.now() + timedelta(hours=1)
+    return token, expiration_time
+
+def send_verification_email(user):
+    verification_link = url_for('verify_email', token=user.verification_token, _external=True)
+    msg = Message("Verify Your Email", recipients=[user.email])
+    msg.body = f"Please click the following link to verify your email: {verification_link}"
+    mail.send(msg)
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -91,14 +105,20 @@ def user_signup():
         if db_user:
             return jsonify({"message": f"{data['email']} already existed"}), 409  # 409 Conflict
 
+        token, expiration_time = generate_verification_token()
+
         new_user = User(
             name=data["name"],
             email=data["email"],
-            password=generate_password_hash(data["password"])
+            password=generate_password_hash(data["password"]),
+            verification_token=token,
+            token_expiration=expiration_time
         )
 
         db.session.add(new_user)
         db.session.commit()
+
+        send_verification_email(new_user)
 
         return jsonify({"message": "Successfully created an account"}), 201 # 201 Created: successfully create a new resource
     except SQLAlchemyError as e:
@@ -106,3 +126,34 @@ def user_signup():
         return jsonify({"message": "Database error occurred"}), 500
     except Exception as e:
         return jsonify({"message": "An unexpected error occurred"}), 500
+    
+@page_bp.route("/verify-email/<token>", methods=["POST"])
+def verify_email(token):
+    user = User.query.filter_by(verification_token=token).first_or_404()
+
+    if user.is_confirmed:
+        return jsonify({"message": "Account is already confirmed. Please login"})
+
+    user.is_confirmed = True
+    user.confirmed_on = datetime.now()
+    user.verification_token = None
+    user.token_expiration = None
+
+    db.session.commit()
+
+    return jsonify({"message": "Email verified successfully"}), 200
+
+@page_bp.route("/resend-verification-email", methods=["POST"])
+@login_required
+def resend_verification_email():
+    if current_user.is_confirmed:
+        return jsonify({"message": "Account has been confirmed"}), 404
+
+    token, expiration_time = generate_verification_token()
+    current_user.verification_token = token
+    current_user.token_expiration = expiration_time
+
+    db.session.commit()
+    send_verification_email(current_user)
+
+    return jsonify({"message": "A new verification email has been sent"}), 200

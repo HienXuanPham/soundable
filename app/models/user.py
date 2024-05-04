@@ -10,13 +10,17 @@ class User(UserMixin, db.Model):
     created_on = db.Column(db.DateTime, nullable=False)
     is_confirmed = db.Column(db.Boolean, nullable=False, default=False)
     confirmed_on = db.Column(db.DateTime, nullable=True)
+    verification_token = db.Column(db.String, nullable=True, unique=True)
+    token_expiration = db.Column(db.DateTime, nullable=True)
 
     def __init__(
-            self, name, email, password, is_confirmed=False, confirmed_on=None
+            self, name, email, password, verification_token,  token_expiration, is_confirmed=False, confirmed_on=None
     ):
         self.name = name
         self.email = email
         self.password = password
+        self.verification_token = verification_token
+        self.token_expiration = token_expiration
         self.created_on = datetime.now()
         self.is_confirmed = is_confirmed
         self.confirmed_on = confirmed_on
