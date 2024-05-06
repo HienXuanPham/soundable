@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from flask_login import login_user, logout_user, login_required, current_user
 from app import db, login_manager, mail
 from flask import Blueprint, request, jsonify, url_for
@@ -11,6 +11,7 @@ import secrets
 users_bp = Blueprint("users", __name__, url_prefix="/users")
 page_bp = Blueprint("", __name__, url_prefix="")
 
+
 def validate_login_request(data):
     if "email" not in data or "password" not in data:
         return {"valid": False, "message": "Email and password are required"}
@@ -20,10 +21,11 @@ def validate_login_request(data):
         return {"valid": False, "message": "Password cannot be empty"}
     else:
         return {"valid": True}
-    
+
+
 def validate_signup_request(data):
     required_fields = ["name", "email", "password", "confirm_password"]
-    
+
     for field in required_fields:
         if field not in data:
             return {"valid": False, "message": f"{field.capitalize()} is required"}
@@ -35,20 +37,26 @@ def validate_signup_request(data):
 
     return {"valid": True, "data": {field: data[field] for field in required_fields}}
 
+
 def generate_verification_token():
     token = secrets.token_hex(16)
-    expiration_time = datetime.now() + timedelta(hours=1)
+    expiration_time = datetime.now(timezone.utc) + timedelta(hours=1)
     return token, expiration_time
 
+
 def send_verification_email(user):
-    verification_link = url_for('verify_email', token=user.verification_token, _external=True)
+    verification_link = url_for(
+        'verify_email', token=user.verification_token, _external=True)
     msg = Message("Verify Your Email", recipients=[user.email])
-    msg.body = f"Please click the following link to verify your email: {verification_link}"
+    msg.body = f"Please click the following link to verify your email: {
+        verification_link}"
     mail.send(msg)
+
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.filter(User.user_id == int(user_id)).first()
+
 
 @page_bp.route("/login", methods=["POST"])
 def user_login():
@@ -57,8 +65,9 @@ def user_login():
 
         validation_result = validate_login_request(request_data)
         if not validation_result["valid"]:
-            return jsonify({"message": validation_result["message"]}), 400 # 400 Bad Request: missing or invalid data
-        
+            # 400 Bad Request: missing or invalid data
+            return jsonify({"message": validation_result["message"]}), 400
+
         user_email = request_data.get("email")
         user_password = request_data.get("password")
 
@@ -70,25 +79,30 @@ def user_login():
                 "message": "success",
                 "name": f"{db_user.name}"
             })
-        
-        return jsonify({"message": "Your email or password is incorrect"}), 401 # 401 Unauthorized
+
+        # 401 Unauthorized
+        return jsonify({"message": "Your email or password is incorrect"}), 401
     except SQLAlchemyError as e:
         # Handle database errors
         db.session.rollback()
-        return jsonify({"message": "Database error occurred"}), 500  # 500 Internal Server Error: a server-side error occurred
+        # 500 Internal Server Error: a server-side error occurred
+        return jsonify({"message": "Database error occurred"}), 500
     except Exception as e:
         # Handle other unexpected errors
         return jsonify({"message": "An unexpected error occurred"}), 500
 
+
 @page_bp.errorhandler(401)
 def unauthorized_access(error):
     return jsonify({"message": "Unauthorized access. Please log in."}), 401
+
 
 @page_bp.route("/logout")
 @login_required
 def user_logout():
     logout_user()
     return jsonify({"message": "Logged out successfully"}), 200
+
 
 @page_bp.route("/signup", methods=["POST"])
 def user_signup():
@@ -103,7 +117,8 @@ def user_signup():
         db_user = User.query.filter_by(email=data["email"]).first()
 
         if db_user:
-            return jsonify({"message": f"{data['email']} already existed"}), 409  # 409 Conflict
+            # 409 Conflict
+            return jsonify({"message": f"{data['email']} already existed"}), 409
 
         token, expiration_time = generate_verification_token()
 
@@ -120,19 +135,30 @@ def user_signup():
 
         send_verification_email(new_user)
 
-        return jsonify({"message": "Successfully created an account"}), 201 # 201 Created: successfully create a new resource
+        # 201 Created: successfully create a new resource
+        return jsonify({"message": "Successfully created an account"}), 201
     except SQLAlchemyError as e:
         db.session.rollback()  # Rollback the session to prevent partial changes
         return jsonify({"message": "Database error occurred"}), 500
     except Exception as e:
         return jsonify({"message": "An unexpected error occurred"}), 500
-    
+
+
 @page_bp.route("/verify-email/<token>", methods=["POST"])
 def verify_email(token):
     user = User.query.filter_by(verification_token=token).first_or_404()
 
     if user.is_confirmed:
-        return jsonify({"message": "Account is already confirmed. Please login"})
+        return jsonify({
+            "action": "login",
+            "message": "Account is already confirmed. Please login"
+        })
+
+    if user.token_expiration and user.token_expiration < datetime.now(timezone.utc):
+        return jsonify({
+            "action": "verify",
+            "message": "The verification link is expired. Please verify your account"
+        })
 
     user.is_confirmed = True
     user.confirmed_on = datetime.now()
@@ -141,7 +167,11 @@ def verify_email(token):
 
     db.session.commit()
 
-    return jsonify({"message": "Email verified successfully"}), 200
+    return jsonify({
+        "action": "login",
+        "message": "Email verified successfully"
+    }), 200
+
 
 @page_bp.route("/resend-verification-email", methods=["POST"])
 @login_required
