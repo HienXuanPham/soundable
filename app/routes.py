@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from flask_login import login_user, logout_user, login_required, current_user
 from app import db, login_manager, mail
-from flask import Blueprint, request, jsonify, url_for
+from flask import Blueprint, request, jsonify, url_for, session
 from app.models.user import User
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.exc import SQLAlchemyError
@@ -38,17 +38,30 @@ def validate_signup_request(data):
     return {"valid": True, "data": {field: data[field] for field in required_fields}}
 
 
+def validate_change_password_request(data):
+    if "password" not in data or "confirm_password" not in data:
+        return {"valid": False, "message": "Password and confirm password are required"}
+    elif not data["password"]:
+        return {"valid": False, "message": "Password cannot be empty"}
+    elif not data["confirm_password"]:
+        return {"valid": False, "message": "Confirm password cannot be empty"}
+    elif data["password"] != data["confirm_password"]:
+        return {"valid": False, "message": "Password and confirm password do not match"}
+    else:
+        return {"valid": True}
+
+
 def generate_verification_token():
     token = secrets.token_hex(16)
     expiration_time = datetime.now(timezone.utc) + timedelta(hours=1)
     return token, expiration_time
 
 
-def send_verification_email(user):
+def send_token_email(user, route, email_subject, email_body):
     verification_link = url_for(
-        'verify_email', token=user.verification_token, _external=True)
-    msg = Message("Verify Your Email", recipients=[user.email])
-    msg.body = f"Please click the following link to verify your email: {
+        route, token=user.verification_token, _external=True)
+    msg = Message(email_subject, recipients=[user.email])
+    msg.body = f"{email_body}: {
         verification_link}"
     mail.send(msg)
 
@@ -73,12 +86,14 @@ def user_login():
 
         db_user = User.query.filter_by(email=user_email).first()
 
-        if db_user and check_password_hash(db_user.password, user_password):
-            login_user(db_user)  # initialize a user session
-            return jsonify({
-                "message": "success",
-                "name": f"{db_user.name}"
-            })
+        if db_user:
+            session["logged_in_user_email"] = db_user.email
+            if check_password_hash(db_user.password, user_password):
+                login_user(db_user)  # initialize a user session
+                return jsonify({
+                    "message": "success",
+                    "name": f"{db_user.name}"
+                })
 
         # 401 Unauthorized
         return jsonify({"message": "Your email or password is incorrect"}), 401
@@ -133,7 +148,8 @@ def user_signup():
         db.session.add(new_user)
         db.session.commit()
 
-        send_verification_email(new_user)
+        send_token_email(new_user, "verify_email", "Verify Your Email",
+                         "Please click the following link to verify your email")
 
         # 201 Created: successfully create a new resource
         return jsonify({"message": "Successfully created an account"}), 201
@@ -184,6 +200,67 @@ def resend_verification_email():
     current_user.token_expiration = expiration_time
 
     db.session.commit()
-    send_verification_email(current_user)
+    send_token_email(current_user, "verify_email", "Verify Your Email",
+                     "Please click the following link to verify your email")
 
     return jsonify({"message": "A new verification email has been sent"}), 200
+
+
+@page_bp.route("/forgot-password", methods=["POST"])
+def forgot_password():
+    user_email = session.get("logged_in_user_email")
+
+    if user_email:
+        db_user = User.query.filter_by(email=user_email).first()
+        if db_user:
+            db_user.verification_token, db_user.token_expiration = generate_verification_token()
+            db.session.commit()
+
+            send_token_email(db_user, "change_password", "Change Your Password",
+                             "Please click the following link to change your password")
+
+            return jsonify({"message": "An email has been sent to change password"}), 200
+        else:
+            return jsonify({"message": "User not found"}), 404
+    else:
+        return jsonify({"message": "No user email in session"}), 400
+
+
+@page_bp.route("/change-password/<token>", methods=["POST"])
+def change_password(token):
+    db_user = User.query.filter_by(verification_token=token).first_or_404()
+
+    if db_user:
+        if db_user.token_expiration and db_user.token_expiration < datetime.now(timezone.utc):
+            return jsonify({
+                "action": "change password",
+                "message": "The link is expired. Please try again"
+            })
+
+        try:
+            request_data = request.get_json()
+            validation_result = validate_change_password_request(
+                request_data)
+
+            if not validation_result["valid"]:
+                return jsonify({"message": validation_result["message"]}), 400
+
+            db_user.password = generate_password_hash(
+                request_data["password"])
+            db_user.verification_token = None
+            db_user.token_expiration = None
+
+            db.session.commit()
+
+            return jsonify({
+                "action": "change password",
+                "message": "Successfully changed password"
+            }), 200
+
+        except SQLAlchemyError as e:
+            db.session.rollback()
+            return jsonify({"message": "Database error occurred"}), 500
+        except Exception as e:
+            return jsonify({"message": "An unexpected error occurred"}), 500
+    else:
+        return jsonify({"message": "Invalid token"}), 404
