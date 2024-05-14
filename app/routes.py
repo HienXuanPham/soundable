@@ -1,15 +1,22 @@
 from datetime import datetime, timedelta, timezone
 from flask_login import login_user, logout_user, login_required, current_user
 from app import db, login_manager, mail
-from flask import Blueprint, request, jsonify, url_for, session
+from flask import Blueprint, request, jsonify, url_for, session, send_file
 from app.models.user import User
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.exc import SQLAlchemyError
 from flask_mail import Message
 import secrets
+import os
+from io import BytesIO
+import threading
+import pyttsx3
+from PyPDF2 import PdfReader
 
 users_bp = Blueprint("users", __name__, url_prefix="/users")
 page_bp = Blueprint("", __name__, url_prefix="")
+
+# ----------------- HELPER FUNCTION -----------------------------#
 
 
 def validate_login_request(data):
@@ -65,10 +72,14 @@ def send_token_email(user, route, email_subject, email_body):
         verification_link}"
     mail.send(msg)
 
+# ----------------- LOAD USER -----------------------------#
+
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.filter(User.user_id == int(user_id)).first()
+
+# ----------------- LOGIN -----------------------------#
 
 
 @page_bp.route("/login", methods=["POST"])
@@ -106,10 +117,14 @@ def user_login():
         # Handle other unexpected errors
         return jsonify({"message": "An unexpected error occurred"}), 500
 
+# ----------------- ERROR HANDLER -----------------------------#
+
 
 @page_bp.errorhandler(401)
 def unauthorized_access(error):
     return jsonify({"message": "Unauthorized access. Please log in."}), 401
+
+# ----------------- LOGOUT -----------------------------#
 
 
 @page_bp.route("/logout")
@@ -117,6 +132,8 @@ def unauthorized_access(error):
 def user_logout():
     logout_user()
     return jsonify({"message": "Logged out successfully"}), 200
+
+# ----------------- SIGNUP -----------------------------#
 
 
 @page_bp.route("/signup", methods=["POST"])
@@ -158,6 +175,8 @@ def user_signup():
         return jsonify({"message": "Database error occurred"}), 500
     except Exception as e:
         return jsonify({"message": "An unexpected error occurred"}), 500
+
+# ----------------- VERIFY ACCOUNT -----------------------------#
 
 
 @page_bp.route("/verify-email/<token>", methods=["POST"])
@@ -204,6 +223,8 @@ def resend_verification_email():
                      "Please click the following link to verify your email")
 
     return jsonify({"message": "A new verification email has been sent"}), 200
+
+# ----------------- CHANGE PASSWORD -----------------------------#
 
 
 @page_bp.route("/forgot-password", methods=["POST"])
@@ -264,3 +285,60 @@ def change_password(token):
             return jsonify({"message": "An unexpected error occurred"}), 500
     else:
         return jsonify({"message": "Invalid token"}), 404
+
+# ----------------- CONVERT PDF TO AUDIO -----------------------------#
+
+
+def remove_pdf_content(pdf_content):
+    pdf_content = None
+
+
+def remove_audio_file(audio_file_path):
+    if audio_file_path:
+        os.remove(audio_file_path)
+        audio_file_path = None
+
+
+@users_bp.route("/convert-pdf-to-audio", methods=["POST"])
+@login_required
+def convert_pdf():
+    if "file" not in request.files:
+        return jsonify({"message": "No file part"})
+
+    pdf_file = request.files["file"]
+    if pdf_file.filename == "":
+        return jsonify({"message": "No selected file"})
+
+    if not pdf_file.filename.endswith(".pdf"):
+        return jsonify({"message": "Not a PDF file"}), 400
+
+    try:
+        # Read PDF file into memory
+        bytes_file = BytesIO(pdf_file.read())
+
+        # Extract text from PDF
+        reader = PdfReader(bytes_file)
+        pdf_content = ""
+
+        for page in reader.pages:
+            pdf_content += page.extract_text()
+
+        # Convert text to audio
+        tts_engine = pyttsx3.init()
+        tts_engine.save_to_file(pdf_content, "tts.mp3")
+        tts_engine.runAndWait()
+
+        # Send the audio file to the user for download
+        send_file("tts.mp3", as_attachment=True)
+
+        # Set timers to remove PDF content and audio file after 10 minutes
+        pdf_timer = threading.Timer(
+            600, remove_pdf_content, args=[pdf_content])
+        audio_timer = threading.Timer(600, remove_audio_file, args=["tts.mp3"])
+        pdf_timer.start()
+        audio_timer.start()
+
+        return jsonify({"message": "Successfully converted PDF to audio"}), 200
+
+    except Exception as e:
+        return jsonify({"message": f"Error processing PDF file: {e}"}), 500
