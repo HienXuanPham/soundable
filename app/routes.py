@@ -14,7 +14,7 @@ import pyttsx3
 from PyPDF2 import PdfReader
 
 users_bp = Blueprint("users", __name__, url_prefix="/users")
-page_bp = Blueprint("", __name__, url_prefix="")
+page_bp = Blueprint("p", __name__, url_prefix="")
 
 # ----------------- HELPER FUNCTION -----------------------------#
 
@@ -307,7 +307,7 @@ def convert_pdf():
 
     pdf_file = request.files["file"]
     if pdf_file.filename == "":
-        return jsonify({"message": "No selected file"})
+        return jsonify({"message": "No selected file"}), 400
 
     if not pdf_file.filename.endswith(".pdf"):
         return jsonify({"message": "Not a PDF file"}), 400
@@ -315,6 +315,10 @@ def convert_pdf():
     try:
         # Read PDF file into memory
         bytes_file = BytesIO(pdf_file.read())
+
+        # Check if the file size exceeds 2MB
+        if len(bytes_file.getvalue()) > (2 * 1024 * 1024):
+            return jsonify({"message": "File size exceeds 2MB limit"}), 400
 
         # Extract text from PDF
         reader = PdfReader(bytes_file)
