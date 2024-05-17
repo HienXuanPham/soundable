@@ -1,13 +1,14 @@
 from datetime import datetime, timedelta, timezone
 from flask_login import login_user, logout_user, login_required, current_user
 from app import db, login_manager, mail
-from flask import Blueprint, request, jsonify, url_for, session, send_file
+from flask import Blueprint, request, jsonify, session, url_for, send_file
 from app.models.user import User
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.exc import SQLAlchemyError
 from flask_mail import Message
-import secrets
+import logging
 import os
+import secrets
 from io import BytesIO
 import threading
 import pyttsx3
@@ -31,6 +32,9 @@ def validate_login_request(data):
 
 
 def validate_signup_request(data):
+    if not data:
+        return {"valid": False, "message": "Name, email, password and confirm password are required"}
+
     required_fields = ["name", "email", "password", "confirm_password"]
 
     for field in required_fields:
@@ -64,9 +68,9 @@ def generate_verification_token():
     return token, expiration_time
 
 
-def send_token_email(user, route, email_subject, email_body):
+def send_token_email(user, endpoint, email_subject, email_body):
     verification_link = url_for(
-        route, token=user.verification_token, _external=True)
+        endpoint, token=user.verification_token, _external=True)
     msg = Message(email_subject, recipients=[user.email])
     msg.body = f"{email_body}: {
         verification_link}"
@@ -111,10 +115,12 @@ def user_login():
     except SQLAlchemyError as e:
         # Handle database errors
         db.session.rollback()
+        logging.error(f"Database error occurred: {e}")
         # 500 Internal Server Error: a server-side error occurred
         return jsonify({"message": "Database error occurred"}), 500
     except Exception as e:
         # Handle other unexpected errors
+        logging.error(f"Unexpected error occurred: {e}")
         return jsonify({"message": "An unexpected error occurred"}), 500
 
 # ----------------- ERROR HANDLER -----------------------------#
@@ -165,15 +171,17 @@ def user_signup():
         db.session.add(new_user)
         db.session.commit()
 
-        send_token_email(new_user, "verify_email", "Verify Your Email",
+        send_token_email(new_user, "p.verify_email", "Verify Your Email",
                          "Please click the following link to verify your email")
 
         # 201 Created: successfully create a new resource
         return jsonify({"message": "Successfully created an account"}), 201
     except SQLAlchemyError as e:
         db.session.rollback()  # Rollback the session to prevent partial changes
+        logging.error(f"Database error occurred: {e}")
         return jsonify({"message": "Database error occurred"}), 500
     except Exception as e:
+        logging.error(f"Unexpected error occurred: {e}")
         return jsonify({"message": "An unexpected error occurred"}), 500
 
 # ----------------- VERIFY ACCOUNT -----------------------------#
@@ -219,7 +227,7 @@ def resend_verification_email():
     current_user.token_expiration = expiration_time
 
     db.session.commit()
-    send_token_email(current_user, "verify_email", "Verify Your Email",
+    send_token_email(current_user, "p.verify_email", "Verify Your Email",
                      "Please click the following link to verify your email")
 
     return jsonify({"message": "A new verification email has been sent"}), 200
@@ -237,7 +245,7 @@ def forgot_password():
             db_user.verification_token, db_user.token_expiration = generate_verification_token()
             db.session.commit()
 
-            send_token_email(db_user, "change_password", "Change Your Password",
+            send_token_email(db_user, "p.change_password", "Change Your Password",
                              "Please click the following link to change your password")
 
             return jsonify({"message": "An email has been sent to change password"}), 200
@@ -290,7 +298,8 @@ def change_password(token):
 
 
 def remove_pdf_content(pdf_content):
-    pdf_content = None
+    if pdf_content:
+        pdf_content = None
 
 
 def remove_audio_file(audio_file_path):

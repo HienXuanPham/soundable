@@ -2,6 +2,7 @@ from app import db
 from datetime import datetime
 from flask_login import UserMixin
 
+
 class User(UserMixin, db.Model):
     user_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String, nullable=False)
@@ -24,3 +25,6 @@ class User(UserMixin, db.Model):
         self.created_on = datetime.now()
         self.is_confirmed = is_confirmed
         self.confirmed_on = confirmed_on
+
+    def get_id(self):
+        return self.user_id

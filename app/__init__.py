@@ -25,7 +25,9 @@ def create_app(test_config=None):
         app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
             "SQLALCHEMY_TEST_DATABASE_URI")
 
-    app.config["MAIL_SERVER"] = "smtp.googlemail.com"
+    app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY")
+
+    app.config["MAIL_SERVER"] = "smtp.gmail.com"
     app.config["MAIL_PORT"] = 587
     app.config["MAIL_USE_TLS"] = True
     app.config["MAIL_USERNAME"] = os.environ.get("MAIL_USERNAME")
