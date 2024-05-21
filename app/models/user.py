@@ -12,7 +12,7 @@ class User(UserMixin, db.Model):
     is_confirmed = db.Column(db.Boolean, nullable=False, default=False)
     confirmed_on = db.Column(db.DateTime, nullable=True)
     verification_token = db.Column(db.String, nullable=True, unique=True)
-    token_expiration = db.Column(db.DateTime, nullable=True)
+    token_expiration = db.Column(db.TIMESTAMP(timezone=True), nullable=True)
 
     def __init__(
             self, name, email, password, verification_token,  token_expiration, is_confirmed=False, confirmed_on=None
