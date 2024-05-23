@@ -8,9 +8,9 @@ class User(UserMixin, db.Model):
     name = db.Column(db.String, nullable=False)
     email = db.Column(db.String, nullable=False)
     password = db.Column(db.Text, nullable=False)
-    created_on = db.Column(db.DateTime, nullable=False)
+    created_on = db.Column(db.TIMESTAMP(timezone=True), nullable=False)
     is_confirmed = db.Column(db.Boolean, nullable=False, default=False)
-    confirmed_on = db.Column(db.DateTime, nullable=True)
+    confirmed_on = db.Column(db.TIMESTAMP(timezone=True), nullable=True)
     verification_token = db.Column(db.String, nullable=True, unique=True)
     token_expiration = db.Column(db.TIMESTAMP(timezone=True), nullable=True)
 

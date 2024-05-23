@@ -65,14 +65,13 @@ def validate_change_password_request(data):
 
 def generate_verification_token():
     token = secrets.token_hex(16)
-    expiration_time = datetime.now(timezone.utc) + timedelta(hours=1)
-    print(f"\ngenerating token: {token}\n")
+    expiration_time = datetime.now() + timedelta(hours=1)
+
     print(f"\ngenerating expiration time: {expiration_time}\n")
     return token, expiration_time
 
 
 def send_token_email(user, endpoint, email_subject, email_body):
-    print(f"\nsend token email: {user.verification_token}")
     verification_link = url_for(
         endpoint, token=user.verification_token, _external=True)
     msg = Message(email_subject, recipients=[user.email])
@@ -163,7 +162,6 @@ def user_signup():
             return jsonify({"message": f"{data['email']} already existed"}), 409
 
         token, expiration_time = generate_verification_token()
-        expiration_time = expiration_time.replace(tzinfo=pytz.utc)
 
         new_user = User(
             name=data["name"],
@@ -176,7 +174,6 @@ def user_signup():
         db.session.add(new_user)
         db.session.commit()
 
-        print(f"\ntoken in db: {new_user.verification_token}\n")
         print(f"\nexpiration time in db: {new_user.token_expiration}\n")
 
         send_token_email(new_user, "p.verify_email", "Verify Your Email",
@@ -205,15 +202,16 @@ def verify_email(token):
             "message": "Account is already confirmed. Please login"
         })
 
-    # Make user.token_expiration timezone-aware if it is naive
-    user.token_expiration = user.token_expiration.replace(tzinfo=pytz.utc)
+    print(f"\nuser timezone: {user.token_expiration.tzinfo}")
 
-    one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
+    if user.token_expiration.tzinfo != pytz.utc:
+        user.token_expiration = user.token_expiration.astimezone(pytz.utc)
 
-    print(f"one hour ago from now: {one_hour_ago}")
-    print(f"token expiration time: {user.token_expiration}")
+    time_now_utc = datetime.now(timezone.utc)
+    print(f"\ntime now UTC: {time_now_utc}")
+    print(f"\ntoken expiration time: {user.token_expiration}")
 
-    if user.token_expiration and user.token_expiration < one_hour_ago:
+    if user.token_expiration and user.token_expiration < time_now_utc:
         return jsonify({
             "action": "verify",
             "message": "The verification link is expired. Please verify your account"
@@ -239,16 +237,11 @@ def resend_verification_email():
         return jsonify({"message": "Account has been confirmed"}), 404
 
     token, expiration_time = generate_verification_token()
-    expiration_time = expiration_time.replace(tzinfo=pytz.utc)
-    print(f"\ntoken before saving to db: {token}")
-    print(f"\nexpiration time before saving to db: {expiration_time}")
 
     current_user.verification_token = token
     current_user.token_expiration = expiration_time
 
     db.session.commit()
-    print(f"\ntoken in db: {token}\n")
-    print(f"\nexpiration time in db: {current_user.token_expiration}\n")
 
     send_token_email(current_user, "p.verify_email", "Verify Your Email",
                      "Please click the following link to verify your email")
