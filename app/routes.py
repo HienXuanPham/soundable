@@ -136,7 +136,7 @@ def unauthorized_access(error):
 # ----------------- LOGOUT -----------------------------#
 
 
-@page_bp.route("/logout")
+@page_bp.route("/logout", methods=["POST"])
 @login_required
 def user_logout():
     logout_user()
