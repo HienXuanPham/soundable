@@ -369,7 +369,8 @@ def convert_pdf():
         # Set timers to remove PDF content and audio file after 10 minutes
         pdf_timer = threading.Timer(
             600, remove_pdf_content, args=[pdf_content])
-        audio_timer = threading.Timer(600, remove_audio_file, args=["tts.mp3"])
+        audio_timer = threading.Timer(
+            600, remove_audio_file, args=[audio_file_path])
         pdf_timer.start()
         audio_timer.start()
 
