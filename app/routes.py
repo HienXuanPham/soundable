@@ -67,7 +67,6 @@ def generate_verification_token():
     token = secrets.token_hex(16)
     expiration_time = datetime.now() + timedelta(hours=1)
 
-    print(f"\ngenerating expiration time: {expiration_time}\n")
     return token, expiration_time
 
 
@@ -78,6 +77,13 @@ def send_token_email(user, endpoint, email_subject, email_body):
     msg.body = f"{email_body}: {
         verification_link}"
     mail.send(msg)
+
+
+def convert_to_utc(user_tz):
+    if user_tz.tzinfo != pytz.utc:
+        user_tz = user_tz.astimezone(pytz.utc)
+
+    return user_tz
 
 # ----------------- LOAD USER -----------------------------#
 
@@ -174,8 +180,6 @@ def user_signup():
         db.session.add(new_user)
         db.session.commit()
 
-        print(f"\nexpiration time in db: {new_user.token_expiration}\n")
-
         send_token_email(new_user, "p.verify_email", "Verify Your Email",
                          "Please click the following link to verify your email")
 
@@ -194,33 +198,30 @@ def user_signup():
 
 @page_bp.route("/verify-email/<token>", methods=["POST"])
 def verify_email(token):
-    user = User.query.filter_by(verification_token=token).first_or_404()
+    db_user = User.query.filter_by(verification_token=token).first_or_404()
 
-    if user.is_confirmed:
+    if not db_user:
+        return jsonify({"message": "Invalid token"}), 404
+
+    if db_user.is_confirmed:
         return jsonify({
             "action": "login",
             "message": "Account is already confirmed. Please login"
         })
 
-    print(f"\nuser timezone: {user.token_expiration.tzinfo}")
-
-    if user.token_expiration.tzinfo != pytz.utc:
-        user.token_expiration = user.token_expiration.astimezone(pytz.utc)
-
+    token_expiration_utc = convert_to_utc(db_user.token_expiration)
     time_now_utc = datetime.now(timezone.utc)
-    print(f"\ntime now UTC: {time_now_utc}")
-    print(f"\ntoken expiration time: {user.token_expiration}")
 
-    if user.token_expiration and user.token_expiration < time_now_utc:
+    if db_user.token_expiration and token_expiration_utc < time_now_utc:
         return jsonify({
             "action": "verify",
             "message": "The verification link is expired. Please verify your account"
         })
 
-    user.is_confirmed = True
-    user.confirmed_on = datetime.now()
-    user.verification_token = None
-    user.token_expiration = None
+    db_user.is_confirmed = True
+    db_user.confirmed_on = datetime.now()
+    db_user.verification_token = None
+    db_user.token_expiration = None
 
     db.session.commit()
 
@@ -275,40 +276,44 @@ def forgot_password():
 def change_password(token):
     db_user = User.query.filter_by(verification_token=token).first_or_404()
 
-    if db_user:
-        if db_user.token_expiration and db_user.token_expiration < datetime.now(timezone.utc):
-            return jsonify({
-                "action": "change password",
-                "message": "The link is expired. Please try again"
-            })
-
-        try:
-            request_data = request.get_json()
-            validation_result = validate_change_password_request(
-                request_data)
-
-            if not validation_result["valid"]:
-                return jsonify({"message": validation_result["message"]}), 400
-
-            db_user.password = generate_password_hash(
-                request_data["password"])
-            db_user.verification_token = None
-            db_user.token_expiration = None
-
-            db.session.commit()
-
-            return jsonify({
-                "action": "change password",
-                "message": "Successfully changed password"
-            }), 200
-
-        except SQLAlchemyError as e:
-            db.session.rollback()
-            return jsonify({"message": "Database error occurred"}), 500
-        except Exception as e:
-            return jsonify({"message": "An unexpected error occurred"}), 500
-    else:
+    if not db_user:
         return jsonify({"message": "Invalid token"}), 404
+
+    token_expiration_utc = convert_to_utc(db_user.token_expiration)
+    time_now_utc = datetime.now(timezone.utc)
+
+    if db_user.token_expiration and token_expiration_utc < time_now_utc:
+        return jsonify({
+            "action": "change password",
+            "message": "The link is expired. Please try again"
+        })
+
+    try:
+        request_data = request.get_json()
+        validation_result = validate_change_password_request(
+            request_data)
+
+        if not validation_result["valid"]:
+            return jsonify({"message": validation_result["message"]}), 400
+
+        db_user.password = generate_password_hash(
+            request_data["password"])
+        db_user.verification_token = None
+        db_user.token_expiration = None
+
+        db.session.commit()
+
+        return jsonify({
+            "action": "change password",
+            "message": "Successfully changed password"
+        }), 200
+
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({"message": "Database error occurred"}), 500
+    except Exception as e:
+        return jsonify({"message": "An unexpected error occurred"}), 500
+
 
 # ----------------- CONVERT PDF TO AUDIO -----------------------------#
 
