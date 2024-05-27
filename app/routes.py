@@ -359,11 +359,12 @@ def convert_pdf():
 
         # Convert text to audio
         tts_engine = pyttsx3.init()
-        tts_engine.save_to_file(pdf_content, "tts.mp3")
+        audio_file_path = os.path.join(os.getcwd(), "tts.mp3")
+        tts_engine.save_to_file(pdf_content, audio_file_path)
         tts_engine.runAndWait()
 
         # Send the audio file to the user for download
-        send_file("tts.mp3", as_attachment=True)
+        response = send_file(audio_file_path, as_attachment=True)
 
         # Set timers to remove PDF content and audio file after 10 minutes
         pdf_timer = threading.Timer(
@@ -372,7 +373,7 @@ def convert_pdf():
         pdf_timer.start()
         audio_timer.start()
 
-        return jsonify({"message": "Successfully converted PDF to audio"}), 200
+        return response
 
     except Exception as e:
         return jsonify({"message": f"Error processing PDF file: {e}"}), 500
