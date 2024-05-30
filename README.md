@@ -57,7 +57,7 @@ pip install -r requirements.txt
 ##### Create a Database in Postgres:
 - Enter Postgres terminal: `psql -U postgres`
 - If you encounter an issue where psql command is not recognized in your environment, you need to add a path to the system’s PATH environment variable.
-- To create a database, enter this command in the terminal: `CREATE DATABASE db_name;`
+- To create a database, enter this command in the terminal: `CREATE DATABASE db_name;` You should create 2 databases (tables), one for development, and one for testing.
 - Use `\l` to list all the databases
 - Switch to another database, use `\c database_name`
 - Exit Postgres database, use `\q`
@@ -70,15 +70,15 @@ A `.env` file in an application is used to store environment variables in a simp
 ```
 FLASK_ENV="development"
 
-SQLALCHEMY_DATABASE_URI="postgresql+psycopg2://postgres:postgres@localhost:5432/dbname_development"
+SQLALCHEMY_DATABASE_URI="postgresql+psycopg2://postgres:postgres@localhost:5432/<dbname_development>"
 
-SQLALCHEMY_TEST_DATABASE_URI="postgresql+psycopg2://postgres:postgres@localhost:5432/dbname_testing"
+SQLALCHEMY_TEST_DATABASE_URI="postgresql+psycopg2://postgres:postgres@localhost:5432/<dbname_testing>"
 
-MAIL_USERNAME="your email"
+MAIL_USERNAME="<your email>"
 
-MAIL_PASSWORD="your email password"
+MAIL_PASSWORD="<your email password>"
 
-SECRET_KEY="choose your secret key"
+SECRET_KEY="<choose your secret key>"
 ```
 
 I chose Gmail to send emails to the users. You can use a different email provider. If you use Gmail, here is how to set up app password for your email: https://support.google.com/mail/answer/185833?hl=en
