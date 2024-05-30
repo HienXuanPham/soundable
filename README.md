@@ -10,7 +10,7 @@
 ### 1. User Authentication and Management
 
 - **User Signup**: Users can create a new account by providing their name, email, password, and confirming their password. A verification email is sent to the user upon successful signup.
-- **User Login**: Users can log in with their email and password. Authentication is managed using the flask_login library.
+- **User Login**: Users can log in with their email and password. Authentication is managed using the `flask_login` library.
 - **Email Verification**: Users receive an email verification link upon signup, which they must use to verify their account.
 - **Password Management**:
   - **Forgot Password**: Users can request a password reset link if they forget their password.
