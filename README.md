@@ -6,15 +6,30 @@
 - I chose Flask to build this app because it's lightweight and makes it easy to build a web application by using its libraries.
 - I used PostgreSQL for the database because it’s scalable and flexable. PostgreSQL is a relational database management system that allows us to create tables, insert data, retrieve data, and delete data. It integrates well with Flask through libraries like SQLAlchemy and Psycopg2, making it easier to manage database operations within the application.
 
+## Features
+### 1. User Authentication and Management
+
+- **User Signup**: Users can create a new account by providing their name, email, password, and confirming their password. A verification email is sent to the user upon successful signup.
+- **User Login**: Users can log in with their email and password. Authentication is managed using the flask_login library.
+- **Email Verification**: Users receive an email verification link upon signup, which they must use to verify their account.
+- **Password Management**:
+  - **Forgot Password**: Users can request a password reset link if they forget their password.
+  - **Change Password**: Users can change their password using a link sent to their email.
+- **User Logout**: Authenticated users can log out of their account.
+
+### 2. PDF to Audio Conversion
+
+- **Convert PDF to Audio**: Authenticated users can upload a PDF file, which will be converted to an audio file using text-to-speech technology. The resulting audio file is made available for download.
+
 ## How to Install and Run the Program Locally
 ### 1. Fork and Clone this repo
 ### 2. Set Up a Visual Environment
-##### MacOs
+**MacOs**
 ``` 
 python3 -m venv venv
 source venv/bin/activate
 ```
-##### Windows
+**Windows**
 ```
 python -m venv venv
 venv\Scripts\activate
@@ -24,7 +39,7 @@ venv\Scripts\activate
 pip install -r requirements.txt
 ```
 ### 4. Setup Postgres
-##### MacOs
+**MacOs**
 - Install Postgres
   - `brew install postgresql`
   - `brew services start postgresql`
@@ -33,7 +48,8 @@ pip install -r requirements.txt
   - The most common default username and password for Postgres is
     - username: postgres
     - password: postgres
-##### Windows
+
+**Windows**
 - Download PostgreSQL at https://www.postgresql.org/download/ 
 - The most common default username and password for Postgres are `postgres`
 - After the PostgreSQL install is finished, you do not need to run StackBuilder for additional plugins.
@@ -93,6 +109,11 @@ https://github.com/HienXuanPham/soundable/assets/44250274/befee270-6b60-4264-b87
 https://github.com/HienXuanPham/soundable/assets/44250274/8816feb8-e2c7-44d6-97b7-8a9eb64c0d72
 
 
+##### Test `convert-pdf-to-audio` route
+For this endpoint, I wrote a test case for it. You can check it out in `test_convert_pdf_to_audio.py` file
+
+
+https://github.com/HienXuanPham/soundable/assets/44250274/3901025b-2204-45ce-a1f3-ab21429857fd
 
 
 
