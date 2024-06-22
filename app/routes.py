@@ -7,13 +7,10 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.exc import SQLAlchemyError
 from flask_mail import Message
 import logging
-import os
 import secrets
 from io import BytesIO
-import threading
-import pyttsx3
-from PyPDF2 import PdfReader
 import pytz
+from app.tasks import convert_pdf_to_audio
 
 users_bp = Blueprint("users", __name__, url_prefix="/users")
 page_bp = Blueprint("p", __name__, url_prefix="")
@@ -314,19 +311,7 @@ def change_password(token):
     except Exception as e:
         return jsonify({"message": "An unexpected error occurred"}), 500
 
-
 # ----------------- CONVERT PDF TO AUDIO -----------------------------#
-
-
-def remove_pdf_content(pdf_content):
-    if pdf_content:
-        pdf_content = None
-
-
-def remove_audio_file(audio_file_path):
-    if audio_file_path:
-        os.remove(audio_file_path)
-        audio_file_path = None
 
 
 @users_bp.route("/convert-pdf-to-audio", methods=["POST"])
@@ -350,31 +335,9 @@ def convert_pdf():
         if len(bytes_file.getvalue()) > (2 * 1024 * 1024):
             return jsonify({"message": "File size exceeds 2MB limit"}), 400
 
-        # Extract text from PDF
-        reader = PdfReader(bytes_file)
-        pdf_content = ""
+        response = convert_pdf_to_audio(bytes_file)
 
-        for page in reader.pages:
-            pdf_content += page.extract_text()
-
-        # Convert text to audio
-        tts_engine = pyttsx3.init()
-        audio_file_path = os.path.join(os.getcwd(), "tts.mp3")
-        tts_engine.save_to_file(pdf_content, audio_file_path)
-        tts_engine.runAndWait()
-
-        # Send the audio file to the user for download
-        response = send_file(audio_file_path, as_attachment=True)
-
-        # Set timers to remove PDF content and audio file after 10 minutes
-        pdf_timer = threading.Timer(
-            600, remove_pdf_content, args=[pdf_content])
-        audio_timer = threading.Timer(
-            600, remove_audio_file, args=[audio_file_path])
-        pdf_timer.start()
-        audio_timer.start()
-
-        return response
+        return send_file(response, as_attachment=True)
 
     except Exception as e:
         return jsonify({"message": f"Error processing PDF file: {e}"}), 500
