@@ -25,18 +25,8 @@ def filter_text(text):
     text = re.sub(r'\d{2}/\d{2}/\d{2}', '', text)
     # Remove times in HH:MM AM/PM format
     text = re.sub(r'\d{1,2}:\d{2} [AP]M', '', text)
-    # Remove header/footer with specific pattern
-    text = re.sub(r'\d+\s+AppDev.*\d+\s+', '', text)
     # Remove page numbers in "Page x" format
     text = re.sub(r'Page \d+', '', text)
-    # Remove specific footer pattern "01-ch01.indd   x MM/DD/YY   HH:MM AM/PM"
-    text = re.sub(
-        r'\d{2}-ch\d{2}\.indd\s+\d+\s+\d{2}/\d{2}/\d{2}\s+\d{1,2}:\d{2} [AP]M', '', text)
-    # Remove the pattern "x Web Scalability for Startup Engineers"
-    text = re.sub(r'\b\d+ Web Scalability for Startup Engineers', '', text)
-    # Remove "AppDev / Web Scalability for Startup Engineers / 365-5 / Artur Ejsmont / Chapter x"
-    text = re.sub(
-        r'AppDev / Web Scalability for Startup Engineers / 365-5 / Artur Ejsmont / Chapter \d+', '', text)
 
     return text
 
