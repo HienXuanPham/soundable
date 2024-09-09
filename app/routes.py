@@ -11,9 +11,12 @@ import secrets
 from io import BytesIO
 import pytz
 from app.tasks import convert_pdf_to_audio
+from app.utils import FileHandler
 
 users_bp = Blueprint("users", __name__, url_prefix="/users")
 page_bp = Blueprint("p", __name__, url_prefix="")
+
+file_handler = FileHandler()
 
 # ----------------- HELPER FUNCTION -----------------------------#
 
@@ -341,3 +344,18 @@ def convert_pdf():
 
     except Exception as e:
         return jsonify({"message": f"Error processing PDF file: {e}"}), 500
+
+# ----------------- UPLOAD A FILE ---------------------------------------#
+
+
+@users_bp.route("/upload-file", methods=["POST"])
+def upload_file():
+    file = request.files.get("file")
+    if not file:
+        return jsonify({"message": "No file part"}), 400
+
+    if file.filename == "":
+        return jsonify({"message": "No selected file"}), 400
+
+    file_handler.upload_file(file)
+    return jsonify({"message": "File uploaded successfully", "temp_file_path": file_handler.temp_file_path}), 200
