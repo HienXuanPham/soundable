@@ -351,11 +351,10 @@ def convert_pdf():
 @users_bp.route("/upload-file", methods=["POST"])
 def upload_file():
     file = request.files.get("file")
-    if not file:
-        return jsonify({"message": "No file part"}), 400
 
-    if file.filename == "":
-        return jsonify({"message": "No selected file"}), 400
+    validate_file_response = file_handler.validate_file(file)
+    if validate_file_response:
+        return validate_file_response
 
     file_handler.upload_file(file)
     return jsonify({"message": "File uploaded successfully", "temp_file_path": file_handler.temp_file_path}), 200
