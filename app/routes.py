@@ -10,7 +10,7 @@ import logging
 import secrets
 from io import BytesIO
 import pytz
-from app.tasks import convert_pdf_to_audio
+from app.tasks import convert_pdf_to_audio, summarize_text
 
 users_bp = Blueprint("users", __name__, url_prefix="/users")
 page_bp = Blueprint("p", __name__, url_prefix="")
@@ -338,6 +338,37 @@ def convert_pdf():
         response = convert_pdf_to_audio(bytes_file)
 
         return send_file(response, as_attachment=True)
+
+    except Exception as e:
+        return jsonify({"message": f"Error processing PDF file: {e}"}), 500
+
+# ----------------- SUMMARIZER TEXT -----------------------------#
+
+
+@users_bp.route("/summarize", methods=["POST"])
+@login_required
+def summarize():
+    if "file" not in request.files:
+        return jsonify({"message": "No file part"})
+
+    pdf_file = request.files["file"]
+    if pdf_file.filename == "":
+        return jsonify({"message": "No selected file"}), 400
+
+    if not pdf_file.filename.endswith(".pdf"):
+        return jsonify({"message": "Not a PDF file"}), 400
+
+    try:
+        # Read PDF file into memory
+        bytes_file = BytesIO(pdf_file.read())
+
+        # Check if the file size exceeds 2MB
+        if len(bytes_file.getvalue()) > (2 * 1024 * 1024):
+            return jsonify({"message": "File size exceeds 2MB limit"}), 400
+
+        response = summarize_text(bytes_file)
+        # print(response)
+        return jsonify({"summary": response})
 
     except Exception as e:
         return jsonify({"message": f"Error processing PDF file: {e}"}), 500

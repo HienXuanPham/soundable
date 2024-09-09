@@ -8,6 +8,7 @@ from flask_mail import Mail
 from flask_dramatiq import Dramatiq
 from dramatiq.brokers.redis import RedisBroker
 import dramatiq
+from transformers import pipeline
 
 
 db = SQLAlchemy()
@@ -15,6 +16,7 @@ migrate = Migrate()
 load_dotenv()
 login_manager = LoginManager()
 mail = Mail()
+summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
 
 
 def create_app(test_config=None):

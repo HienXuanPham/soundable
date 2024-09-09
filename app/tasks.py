@@ -4,7 +4,8 @@ import dramatiq
 from io import BytesIO
 import threading
 import pyttsx3
-from PyPDF2 import PdfReader
+from pypdf import PdfReader
+from app import summarizer
 
 
 def remove_pdf_content(pdf_content):
@@ -57,3 +58,32 @@ def convert_pdf_to_audio(pdf):
     audio_timer.start()
 
     return audio_file_path
+
+
+@dramatiq.actor
+def summarize_text(pdf):
+    bytes_file = BytesIO(pdf.read())
+    reader = PdfReader(bytes_file)
+    text = ""
+
+    for page_num, page in enumerate(reader.pages):
+        try:
+            pdf_content = page.extract_text()
+            if pdf_content:
+                text += pdf_content
+            else:
+                raise ValueError(f"No text extracted from page {page_num}")
+        except Exception as e:
+            print(f"Error processing page {page_num}: {e}")
+            continue  # skip to the next page if there's an issue
+
+    print(len(text))
+    summary = summarizer(text,  max_length=min(
+        10000, len(text)), min_length=len(text), do_sample=False)
+    summary_text = summary[0]["summary_text"]
+
+    summary_text_file_path = os.path.join(os.getcwd(), "summary.txt")
+    with open(summary_text_file_path, "w") as f:
+        f.write(summary_text)
+
+    return summary_text
