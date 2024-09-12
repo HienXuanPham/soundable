@@ -11,12 +11,12 @@ import secrets
 from io import BytesIO
 import pytz
 from app.tasks import convert_pdf_to_audio
-from app.utils import FileHandler
+from app.utils import DocumentHandler
 
 users_bp = Blueprint("users", __name__, url_prefix="/users")
 page_bp = Blueprint("p", __name__, url_prefix="")
 
-file_handler = FileHandler()
+document_handler = DocumentHandler()
 
 # ----------------- HELPER FUNCTION -----------------------------#
 
@@ -348,13 +348,20 @@ def convert_pdf():
 # ----------------- UPLOAD A FILE ---------------------------------------#
 
 
-@users_bp.route("/upload-file", methods=["POST"])
+@users_bp.route("/upload-document", methods=["POST"])
 def upload_file():
     file = request.files.get("file")
 
-    validate_file_response = file_handler.validate_file(file)
+    validate_file_response = document_handler.validate_doc(file)
     if validate_file_response:
         return validate_file_response
 
-    file_handler.upload_file(file)
-    return jsonify({"message": "File uploaded successfully", "temp_file_path": file_handler.temp_file_path}), 200
+    document_handler.upload_document(file)
+    return jsonify({"message": "File uploaded successfully", "document_id": add_document(document_handler.temp_doc_path)}), 200
+
+# ------------------ ANSWER QUESTIONS --------------------------------------#
+
+
+@users_bp.route("/answer_question", methods=["POST"])
+def answer_question(req):
+    return jsonify({"answer": get_answer(req.question, req.document_id)}), 200

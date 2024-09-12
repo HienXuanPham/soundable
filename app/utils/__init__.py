@@ -1,1 +1,1 @@
-from .file_handler import FileHandler
+from .document_handler import DocumentHandler
